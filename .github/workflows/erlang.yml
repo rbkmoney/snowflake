@@ -18,6 +18,8 @@ jobs:
         submodules: recursive
     - name: Get deps
       run: make deps
+    - name: Compile
+      run: make all
     - name: Dialyzer
       run: make dialyzer
     - name: Run tests
