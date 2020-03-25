@@ -6,6 +6,8 @@ on:
   pull_request:
     branches: [ master ]
 
+env:
+  ERLANG_VERSION: 22.3
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -16,10 +18,17 @@ jobs:
       uses: actions/checkout@v1
       with:
         submodules: recursive
+    - name: Restore rebar3 chache
+      uses: actions/cache@v1
+      with:
+        path: ~/.cache/rebar3
+        key: rebar3-${{ env.ERLANG_VERSION }}
     - name: Get deps
       run: make deps
     - name: Compile
       run: make all
+    - name: Xref
+      run: make xref
     - name: Dialyzer
       run: make dialyzer
     - name: Run tests

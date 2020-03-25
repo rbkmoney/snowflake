@@ -1,7 +1,4 @@
-deps/
-ebin/
-*.beam
-priv/log/
+/_build/
 *.dump
 doc/*.html
 doc/erlang.png

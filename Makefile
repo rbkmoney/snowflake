@@ -1,8 +1,8 @@
-REBAR = ./rebar
+REBAR = rebar3
 ERL ?= erl
 APP := snowflake
 
-.PHONY: deps
+.PHONY: deps test dialyzer clean distclean
 
 all: deps
 	@$(REBAR) compile
@@ -14,16 +14,19 @@ clean:
 	@$(REBAR) clean
 
 distclean: clean
-	@$(REBAR) delete-deps
+	rm -rf ./_build
 
 docs:
-	@erl -noshell -run edoc_run application '$(APP)' '"."' '[]'
+	@$(REBAR) edoc
 
-test: all
-	@$(REBAR) skip_deps=true eunit
+test:
+	@$(REBAR) eunit
 
-dialyzer: all
-	dialyzer ebin -Wunmatched_returns -Werror_handling -Wrace_conditions -Wunderspecs
+dialyzer:
+	@$(REBAR) dialyzer
+
+xref:
+	@$(REBAR) xref
 
 typer: 
 	typer src
