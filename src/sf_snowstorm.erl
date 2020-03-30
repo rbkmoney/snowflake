@@ -97,7 +97,7 @@ machine_id(MID) when is_integer(MID) ->
 	MID;
 machine_id(hostname_hash) ->
     {ok, Hostname} = inet:gethostname(),
-	erlang:phash2(Hostname, erlang:trunc(math:pow(2, ?MACHINE_ID_SIZE)));
+    erlang:phash2(Hostname, 1 bsl ?MACHINE_ID_SIZE);
 machine_id({env, Name}) ->
 	case os:getenv(Name) of
 		false ->
