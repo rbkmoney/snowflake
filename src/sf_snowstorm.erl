@@ -25,6 +25,9 @@
 	calendar:datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}})).
 -define(MS_EPOCH_DIFF, 1000*(?SNOWFLAKE_EPOCH - ?STD_EPOCH)).
 
+-define(TIMESTAMP_SIZE, 42).
+-define(MACHINE_ID_SIZE, 10).
+-define(COUNTER_SIZE, 12).
 
 %% The gen_server state
 -record(st, 
@@ -38,9 +41,8 @@
 %% Gen_Server callbacks
 
 init([Name]) ->
-    {ok, MID} = application:get_env(machine_id),
     {ok, #st{name = Name, last = snowflake_now(),
-	     count = 0, machine = MID}}.
+	     count = 0, machine = machine_id()}}.
     
 handle_call(new, _From, State = #st{last = Last, 
 				    machine = MID, 
@@ -52,7 +54,7 @@ handle_call(new, _From, State = #st{last = Last,
 	      _    -> 0
 	  end,
     {reply, 
-     <<Now:42, MID:10, SID:12>>, 
+     <<Now:?TIMESTAMP_SIZE, MID:?MACHINE_ID_SIZE, SID:?COUNTER_SIZE>>, 
      State#st{last = Now, count = SID+1}}.
 
 handle_cast(_Message, State) -> {noreply, State}.
@@ -82,3 +84,24 @@ snowflake_now() ->
     {MegS, S, MuS} = erlang:timestamp(),
     Secs = (1000000*MegS + S)*1000 + trunc(MuS/1000),
     Secs - ?MS_EPOCH_DIFF.
+
+-spec 
+machine_id() -> integer().
+machine_id() ->
+    {ok, MID} = application:get_env(machine_id),
+	machine_id(MID).
+
+-spec 
+machine_id(integer() | hostname_hash | {env, os:env_var_name()}) -> integer().
+machine_id(MID) when is_integer(MID) ->
+	MID;
+machine_id(hostname_hash) ->
+    {ok, Hostname} = inet:gethostname(),
+	erlang:phash2(Hostname, erlang:trunc(math:pow(2, ?MACHINE_ID_SIZE)));
+machine_id({env, Name}) ->
+	case os:getenv(Name) of
+		false ->
+			erlang:error({non_existing_env_variable, Name});
+		Value ->
+			erlang:list_to_integer(Value)
+	end.
