@@ -88,7 +88,7 @@ snowflake_now() ->
 -spec 
 machine_id() -> integer().
 machine_id() ->
-    {ok, MID} = application:get_env(machine_id),
+	{ok, MID} = application:get_env(machine_id),
 	machine_id(MID).
 
 -spec 
@@ -96,8 +96,8 @@ machine_id(integer() | hostname_hash | {env, os:env_var_name()}) -> integer().
 machine_id(MID) when is_integer(MID) ->
 	MID;
 machine_id(hostname_hash) ->
-    {ok, Hostname} = inet:gethostname(),
-    erlang:phash2(Hostname, 1 bsl ?MACHINE_ID_SIZE);
+	{ok, Hostname} = inet:gethostname(),
+	erlang:phash2(Hostname, 1 bsl ?MACHINE_ID_SIZE);
 machine_id({env, Name}) ->
 	case os:getenv(Name) of
 		false ->
