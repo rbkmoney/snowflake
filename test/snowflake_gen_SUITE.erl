@@ -105,5 +105,5 @@ generate_ids(Count, Time, GenSt, Acc) when Count > 0 ->
 
 -spec sf_time() -> time().
 sf_time() ->
-    SnowflakeEPOCHDiff = 1325376000000,  % 2012-01-01 - 1970-01-01 in milliseconds
-    erlang:system_time(millisecond) - SnowflakeEPOCHDiff.
+    SnowflakeEPOCH = 1325376000000,  % 1970-01-01T00:00:00Z - 2012-01-01T00:00:00Z in milliseconds
+    os:system_time(millisecond) - SnowflakeEPOCH.
