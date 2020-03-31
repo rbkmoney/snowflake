@@ -55,7 +55,7 @@ new(Storm) when is_pid(Storm) ->
 	{ok, ID} ->
 	    ID;
 	{error, Reason} ->
-	    erlang:throw(Reason)
+	    erlang:error(Reason)
     end.
 
 -spec

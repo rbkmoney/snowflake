@@ -17,6 +17,7 @@
 -type time() :: non_neg_integer().
 -type generation_error_reason() ::
     {backward_clock_moving, Last :: time(), New :: time()} |
+    {timestamp_too_large, Time :: time()} |
     {invalid_timestamp, Time :: integer()} |
     exhausted.
 
@@ -54,10 +55,17 @@ counter_size() ->
 
 -spec new(time(), machine_id()) ->
     {ok, state()} |
-    {error, {invalid_machine_id, integer()} | {invalid_timestamp, integer()}}.
-new(Time, _MachineID) when Time >= (1 bsl ?TIMESTAMP_SIZE) orelse Time < 0 ->
+    {error, {invalid_machine_id, integer()} |
+            {machine_id_too_large, integer()} |
+            {timestamp_too_large, integer()} |
+            {invalid_timestamp, integer()}}.
+new(Time, _MachineID) when Time >= (1 bsl ?TIMESTAMP_SIZE) ->
+    {error, {timestamp_too_large, Time}};
+new(Time, _MachineID) when Time < 0 ->
     {error, {invalid_timestamp, Time}};
-new(_Time, MachineID) when MachineID >= (1 bsl ?MACHINE_ID_SIZE) orelse MachineID < 0 ->
+new(_Time, MachineID) when MachineID >= (1 bsl ?MACHINE_ID_SIZE) ->
+    {error, {machine_id_too_large, MachineID}};
+new(_Time, MachineID) when MachineID < 0 ->
     {error, {invalid_machine_id, MachineID}};
 new(Time, MachineID) ->
     {ok, #state{
@@ -66,17 +74,16 @@ new(Time, MachineID) ->
         count = 0
     }}.
 
--spec next(time(), state()) ->
-    {ok, uuid(), state()} |
-    {error, generation_error_reason()}.
-next(Time, _State) when Time >= (1 bsl ?TIMESTAMP_SIZE) orelse Time < 0 ->
-    {error, {invalid_timestamp, Time}};
-next(Time, #state{last = Last}) when Time < Last ->
-    {error, {backward_clock_moving, Last, Time}};
+-spec next(time(), state()) -> {Result, state()} when
+    Result :: {ok, uuid()} | {error, generation_error_reason()}.
+next(Time, State) when Time >= (1 bsl ?TIMESTAMP_SIZE) ->
+    {{error, {timestamp_too_large, Time}}, State};
+next(Time, #state{last = Last} = State) when Time < Last ->
+    {{error, {backward_clock_moving, Last, Time}}, State};
 next(Time, #state{last = Last} = State) when Time > Last ->
     next(Time, State#state{last = Time, count = 0});
-next(Time, #state{count = Count, last = Last}) when Time =:= Last andalso Count >= (1 bsl ?COUNTER_SIZE) ->
-    {error, exhausted};
-next(Time, #state{count = Count, last = Last, machine = MachineID} = State) when Time =:= Last ->
-    ID = <<Last:?TIMESTAMP_SIZE, MachineID:?MACHINE_ID_SIZE, Count:?COUNTER_SIZE>>,
-    {ok, ID, State#state{count = Count + 1}}.
+next(Time, #state{count = Count, last = Time} = State) when Count >= (1 bsl ?COUNTER_SIZE) ->
+    {{error, exhausted}, State};
+next(Time, #state{count = Count, last = Time, machine = MachineID} = State) ->
+    ID = <<Time:?TIMESTAMP_SIZE, MachineID:?MACHINE_ID_SIZE, Count:?COUNTER_SIZE>>,
+    {{ok, ID}, State#state{count = Count + 1}}.

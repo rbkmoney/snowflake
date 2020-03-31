@@ -35,22 +35,22 @@ timestamp_init_validation_test(_C) ->
     TooLittleTime = -1,
     TooBigTime = 1 bsl snowflake_gen:timestamp_size(),
     ?assertEqual({error, {invalid_timestamp, TooLittleTime}}, snowflake_gen:new(TooLittleTime, 0)),
-    ?assertEqual({error, {invalid_timestamp, TooBigTime}}, snowflake_gen:new(TooBigTime, 0)).
+    ?assertEqual({error, {timestamp_too_large, TooBigTime}}, snowflake_gen:new(TooBigTime, 0)).
 
 -spec machine_id_init_validation_test(config()) -> test_return().
 machine_id_init_validation_test(_C) ->
     TooLittleID = -1,
     TooBigID = 1 bsl snowflake_gen:timestamp_size(),
     ?assertEqual({error, {invalid_machine_id, TooLittleID}}, snowflake_gen:new(0, TooLittleID)),
-    ?assertEqual({error, {invalid_machine_id, TooBigID}}, snowflake_gen:new(0, TooBigID)).
+    ?assertEqual({error, {machine_id_too_large, TooBigID}}, snowflake_gen:new(0, TooBigID)).
 
 -spec timestamp_gen_validation_test(config()) -> test_return().
 timestamp_gen_validation_test(_C) ->
     {ok, Gen} = snowflake_gen:new(0, 0),
     TooLittleTime = -1,
     TooBigTime = 1 bsl snowflake_gen:timestamp_size(),
-    ?assertEqual({error, {invalid_timestamp, TooLittleTime}}, snowflake_gen:next(TooLittleTime, Gen)),
-    ?assertEqual({error, {invalid_timestamp, TooBigTime}}, snowflake_gen:next(TooBigTime, Gen)).
+    ?assertMatch({{error, {backward_clock_moving, 0, TooLittleTime}}, _}, snowflake_gen:next(TooLittleTime, Gen)),
+    ?assertMatch({{error, {timestamp_too_large, TooBigTime}}, _}, snowflake_gen:next(TooBigTime, Gen)).
 
 -spec monotonic_test(config()) -> test_return().
 monotonic_test(_C) ->
@@ -64,14 +64,14 @@ monotonic_test(_C) ->
         {Gen, []},
         [Time, Time + 1, Time + 2, Time + 3]
     ),
-    ?assertEqual(IDs, lists:sort(uniq(IDs))).
+    ?assertEqual(IDs, lists:usort(IDs)).
 
 -spec backward_clock_moving_test(config()) -> test_return().
 backward_clock_moving_test(_C) ->
     Time = sf_time(),
     NewTime = Time - 1,
     {ok, Gen} = snowflake_gen:new(Time, 0),
-    ?assertEqual({error, {backward_clock_moving, Time, NewTime}}, snowflake_gen:next(NewTime, Gen)).
+    ?assertMatch({{error, {backward_clock_moving, Time, NewTime}}, _}, snowflake_gen:next(NewTime, Gen)).
 
 -spec exhausted_test(config()) -> test_return().
 exhausted_test(_C) ->
@@ -79,10 +79,6 @@ exhausted_test(_C) ->
     ?assertMatch({error, exhausted, _}, generate_ids((1 bsl snowflake_gen:counter_size()) + 1, sf_time(), Gen)).
 
 %% Utils
-
--spec uniq(list()) -> list().
-uniq(L) ->
-    sets:to_list(sets:from_list(L)).
 
 -spec generate_ids(non_neg_integer(), time(), gen()) ->
     {ok, [uuid()], gen()} |
@@ -97,10 +93,10 @@ generate_ids(0, _Time, GenSt, Acc) ->
     {ok, lists:reverse(Acc), GenSt};
 generate_ids(Count, Time, GenSt, Acc) when Count > 0 ->
     case snowflake_gen:next(Time, GenSt) of
-        {ok, ID, NewGen} ->
+        {{ok, ID}, NewGen} ->
             generate_ids(Count - 1, Time, NewGen, [ID | Acc]);
-        {error, Reason} ->
-            {error, Reason, GenSt}
+        {{error, Reason}, NewGen} ->
+            {error, Reason, NewGen}
     end.
 
 -spec sf_time() -> time().

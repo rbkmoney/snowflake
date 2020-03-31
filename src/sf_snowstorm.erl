@@ -39,12 +39,7 @@ init([Name]) ->
     {ok, #st{name = Name, gen = Gen}}.
     
 handle_call(new, _From, State = #st{gen = GenSt}) ->
-    {Reply, NewGenSt} = case snowflake_gen:next(snowflake_now(), GenSt) of
-		{ok, ID, St} ->
-			{{ok, ID}, St};
-		{error, _Reason} = Error ->
-			{Error, GenSt}
-	end,
+    {Reply, NewGenSt} = snowflake_gen:next(snowflake_now(), GenSt),
     {reply, Reply, State#st{gen = NewGenSt}}.
 
 handle_cast(_Message, State) -> {noreply, State}.
