@@ -17,37 +17,22 @@
 
 -export([start/1, start_link/1]).
 
--define(TIMESTAMP_SIZE, 42).
--define(MACHINE_ID_SIZE, 10).
--define(COUNTER_SIZE, 12).
-
 %% The gen_server state
--record(st, 
+-record(st,
 	{name :: atom(),
-	 last :: integer(),
-	 machine :: integer(),
-	 count :: integer()}).
+	 gen :: snowflake_gen:state()}).
 
 
 %% --------------------
 %% Gen_Server callbacks
 
 init([Name]) ->
-    {ok, #st{name = Name, last = snowflake_now(),
-	     count = 0, machine = machine_id()}}.
+	{ok, Gen} = snowflake_gen:new(snowflake_now(), machine_id()),
+    {ok, #st{name = Name, gen = Gen}}.
     
-handle_call(new, _From, State = #st{last = Last, 
-				    machine = MID, 
-				    count = Count}) ->
-    Now = snowflake_now(),
-    SID = case Now of
-	      Last -> Count;
-	      %% New time point, reset the counter.
-	      _    -> 0
-	  end,
-    {reply, 
-     <<Now:?TIMESTAMP_SIZE, MID:?MACHINE_ID_SIZE, SID:?COUNTER_SIZE>>, 
-     State#st{last = Now, count = SID+1}}.
+handle_call(new, _From, State = #st{gen = GenSt}) ->
+    {Reply, NewGenSt} = snowflake_gen:next(snowflake_now(), GenSt),
+    {reply, Reply, State#st{gen = NewGenSt}}.
 
 handle_cast(_Message, State) -> {noreply, State}.
 handle_info(_Message, State) -> {noreply, State}.
@@ -88,7 +73,7 @@ machine_id(MID) when is_integer(MID) ->
 	MID;
 machine_id(hostname_hash) ->
 	{ok, Hostname} = inet:gethostname(),
-	erlang:phash2(Hostname, 1 bsl ?MACHINE_ID_SIZE);
+	erlang:phash2(Hostname, 1 bsl snowflake_gen:machine_id_size());
 machine_id({env, Name}) ->
 	case os:getenv(Name) of
 		false ->

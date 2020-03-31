@@ -20,7 +20,7 @@ docs:
 	@$(REBAR) edoc
 
 test:
-	@$(REBAR) eunit
+	@$(REBAR) do eunit, ct
 
 dialyzer:
 	@$(REBAR) dialyzer

@@ -23,7 +23,7 @@
 %% ----------
 %% Some types
 
--type uuid() :: <<_:64>>.
+-type uuid() :: snowflake_gen:uuid().
 %% A uuid binary consisting of `<<Time, MachineID, SequenceID>>' where
 %% `Time' is a 42 bit binary integer recording milliseconds since UTC
 %% 2012-01-01T00:00:00Z, `MachineID' a 10 bit integer recording the
@@ -51,7 +51,12 @@ new(Name) when is_atom(Name) ->
 	    new(Server, Name)
     end;
 new(Storm) when is_pid(Storm) ->
-    gen_server:call(Storm, new).
+    case gen_server:call(Storm, new) of
+	{ok, ID} ->
+	    ID;
+	{error, Reason} ->
+	    erlang:error(Reason)
+    end.
 
 -spec
 %% @doc Creates a new snowflake in a named series. Two snowflakes with
