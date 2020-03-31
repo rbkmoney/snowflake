@@ -17,14 +17,6 @@
 
 -export([start/1, start_link/1]).
 
-%% The snowflake time is milliseconds since the snowflake_epoch,
-%% January 1st, 2012.
--define(SNOWFLAKE_EPOCH,
-	calendar:datetime_to_gregorian_seconds({{2012, 1, 1}, {0,0,0}})).
--define(STD_EPOCH,
-	calendar:datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}})).
--define(MS_EPOCH_DIFF, 1000*(?SNOWFLAKE_EPOCH - ?STD_EPOCH)).
-
 -define(TIMESTAMP_SIZE, 42).
 -define(MACHINE_ID_SIZE, 10).
 -define(COUNTER_SIZE, 12).
@@ -81,9 +73,8 @@ start_link(Name) ->
 %% 2012.
 snowflake_now() -> integer().
 snowflake_now() ->
-    {MegS, S, MuS} = erlang:timestamp(),
-    Secs = (1000000*MegS + S)*1000 + trunc(MuS/1000),
-    Secs - ?MS_EPOCH_DIFF.
+	SnowflakeEPOCH = 1325376000000,  % 1970-01-01T00:00:00Z - 2012-01-01T00:00:00Z in milliseconds
+	os:system_time(millisecond) - SnowflakeEPOCH.
 
 -spec 
 machine_id() -> integer().
