@@ -73,7 +73,7 @@ start_link(Name) ->
 %% 2012.
 snowflake_now() -> integer().
 snowflake_now() ->
-	SnowflakeEPOCH = 1325376000000,  % 1970-01-01T00:00:00Z - 2012-01-01T00:00:00Z in milliseconds
+	SnowflakeEPOCH = 1325376000000,  % 2012-01-01T00:00:00Z - 1970-01-01T00:00:00Z in milliseconds
 	os:system_time(millisecond) - SnowflakeEPOCH.
 
 -spec 
