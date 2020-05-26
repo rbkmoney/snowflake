@@ -5,7 +5,7 @@ APP := snowflake
 .PHONY: deps test dialyzer clean distclean
 
 all: deps
-	@$(REBAR) compile
+	@$(REBAR) as strict compile
 
 deps:
 	@$(REBAR) get-deps
@@ -20,7 +20,7 @@ docs:
 	@$(REBAR) edoc
 
 test:
-	@$(REBAR) do eunit, ct
+	@$(REBAR) as test,strict do eunit,ct
 
 dialyzer:
 	@$(REBAR) dialyzer
