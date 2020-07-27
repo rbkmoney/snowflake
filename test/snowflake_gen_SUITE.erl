@@ -9,6 +9,7 @@
 -export([timestamp_gen_validation_test/1]).
 -export([monotonic_test/1]).
 -export([backward_clock_moving_test/1]).
+-export([confugurable_backward_clock_moving_test/1]).
 -export([exhausted_test/1]).
 
 -type config() :: [{atom(), term()}].
@@ -18,6 +19,7 @@
 -type gen() :: snowflake_gen:state().
 -type uuid() :: snowflake_gen:uuid().
 -type time() :: snowflake_gen:time().
+-type machine_id() :: snowflake_gen:machine_id().
 
 -spec all() -> [test_case_name()].
 all() ->
@@ -27,6 +29,7 @@ all() ->
         timestamp_gen_validation_test,
         monotonic_test,
         backward_clock_moving_test,
+        confugurable_backward_clock_moving_test,
         exhausted_test
     ].
 
@@ -34,27 +37,27 @@ all() ->
 timestamp_init_validation_test(_C) ->
     TooLittleTime = -1,
     TooBigTime = 1 bsl snowflake_gen:timestamp_size(),
-    ?assertEqual({error, {invalid_timestamp, TooLittleTime}}, snowflake_gen:new(TooLittleTime, 0)),
-    ?assertEqual({error, {timestamp_too_large, TooBigTime}}, snowflake_gen:new(TooBigTime, 0)).
+    ?assertEqual({error, {invalid_timestamp, TooLittleTime}}, new(TooLittleTime, 0)),
+    ?assertEqual({error, {timestamp_too_large, TooBigTime}}, new(TooBigTime, 0)).
 
 -spec machine_id_init_validation_test(config()) -> test_return().
 machine_id_init_validation_test(_C) ->
     TooLittleID = -1,
     TooBigID = 1 bsl snowflake_gen:timestamp_size(),
-    ?assertEqual({error, {invalid_machine_id, TooLittleID}}, snowflake_gen:new(0, TooLittleID)),
-    ?assertEqual({error, {machine_id_too_large, TooBigID}}, snowflake_gen:new(0, TooBigID)).
+    ?assertEqual({error, {invalid_machine_id, TooLittleID}}, new(0, TooLittleID)),
+    ?assertEqual({error, {machine_id_too_large, TooBigID}}, new(0, TooBigID)).
 
 -spec timestamp_gen_validation_test(config()) -> test_return().
 timestamp_gen_validation_test(_C) ->
-    {ok, Gen} = snowflake_gen:new(0, 0),
+    {ok, Gen} = new(0, 0),
     TooLittleTime = -1,
     TooBigTime = 1 bsl snowflake_gen:timestamp_size(),
-    ?assertMatch({{error, {backward_clock_moving, 0, TooLittleTime}}, _}, snowflake_gen:next(TooLittleTime, Gen)),
+    ?assertMatch({{error, {invalid_timestamp, TooLittleTime}}, _}, snowflake_gen:next(TooLittleTime, Gen)),
     ?assertMatch({{error, {timestamp_too_large, TooBigTime}}, _}, snowflake_gen:next(TooBigTime, Gen)).
 
 -spec monotonic_test(config()) -> test_return().
 monotonic_test(_C) ->
-    {ok, Gen} = snowflake_gen:new(sf_time(), 0),
+    {ok, Gen} = new(sf_time(), 0),
     Time = sf_time(),
     {_Gen, IDs} = lists:foldl(
         fun(T, {GenSt, Acc}) ->
@@ -70,15 +73,38 @@ monotonic_test(_C) ->
 backward_clock_moving_test(_C) ->
     Time = sf_time(),
     NewTime = Time - 1,
-    {ok, Gen} = snowflake_gen:new(Time, 0),
+    {ok, Gen} = new(Time, 0),
     ?assertMatch({{error, {backward_clock_moving, Time, NewTime}}, _}, snowflake_gen:next(NewTime, Gen)).
+
+-spec confugurable_backward_clock_moving_test(config()) -> test_return().
+confugurable_backward_clock_moving_test(_C) ->
+    Time = sf_time(),
+    {ok, Gen} = snowflake_gen:new(#{
+        initial_timestamp => Time,
+        machine_id => 0,
+        max_backward_clock_moving => 100
+    }),
+    ?assertMatch({{ok, _}, _}, snowflake_gen:next(Time + 1, Gen)),
+    ?assertMatch({{ok, _}, _}, snowflake_gen:next(Time + 0, Gen)),
+    ?assertMatch({{ok, _}, _}, snowflake_gen:next(Time - 1, Gen)),
+    ?assertMatch({{ok, _}, _}, snowflake_gen:next(Time - 99, Gen)),
+    ?assertMatch({{ok, _}, _}, snowflake_gen:next(Time - 100, Gen)),
+    ?assertMatch({{error, {backward_clock_moving, Time, _}}, _}, snowflake_gen:next(Time - 101, Gen)).
 
 -spec exhausted_test(config()) -> test_return().
 exhausted_test(_C) ->
-    {ok, Gen} = snowflake_gen:new(sf_time(), 0),
+    {ok, Gen} = new(sf_time(), 0),
     ?assertMatch({error, exhausted, _}, generate_ids((1 bsl snowflake_gen:counter_size()) + 1, sf_time(), Gen)).
 
 %% Utils
+
+-spec new(time(), machine_id()) ->
+    {ok, gen()} | {error, term()}.
+new(Time, MachineID) ->
+    snowflake_gen:new(#{
+        initial_timestamp => Time,
+        machine_id => MachineID
+    }).
 
 -spec generate_ids(non_neg_integer(), time(), gen()) ->
     {ok, [uuid()], gen()} |

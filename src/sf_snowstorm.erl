@@ -27,7 +27,12 @@
 %% Gen_Server callbacks
 
 init([Name]) ->
-	{ok, Gen} = snowflake_gen:new(snowflake_now(), machine_id()),
+	Options = #{
+		initial_timestamp => snowflake_now(),
+		machine_id => machine_id(),
+		max_backward_clock_moving => max_backward_clock_moving()
+	},
+	{ok, Gen} = snowflake_gen:new(Options),
     {ok, #st{name = Name, gen = Gen}}.
     
 handle_call(new, _From, State = #st{gen = GenSt}) ->
@@ -66,6 +71,16 @@ machine_id() -> integer().
 machine_id() ->
 	{ok, MID} = application:get_env(machine_id),
 	machine_id(MID).
+
+-spec 
+max_backward_clock_moving() -> non_neg_integer().
+max_backward_clock_moving() ->
+	case application:get_env(max_backward_clock_moving) of
+		{ok, Max} ->
+			Max;
+		undefined ->
+			0
+	end.
 
 -spec 
 machine_id(integer() | hostname_hash | {env, os:env_var_name()}) -> integer().

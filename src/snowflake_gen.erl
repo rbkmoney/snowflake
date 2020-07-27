@@ -3,7 +3,7 @@
 -export([timestamp_size/0]).
 -export([machine_id_size/0]).
 -export([counter_size/0]).
--export([new/2]).
+-export([new/1]).
 -export([next/2]).
 
 -export_type([uuid/0]).
@@ -21,11 +21,17 @@
     {invalid_timestamp, Time :: integer()} |
     exhausted.
 
+-type options() :: #{
+    initial_timestamp := time(),
+    machine_id := machine_id(),
+    max_backward_clock_moving => non_neg_integer()
+}.
 
 -record(state, {
     last :: time(),
     machine :: machine_id(),
-    count :: counter()
+    count :: counter(),
+    max_backward_clock_moving :: non_neg_integer()
 }).
 -opaque state() :: state().
 
@@ -53,24 +59,25 @@ machine_id_size() ->
 counter_size() ->
     ?COUNTER_SIZE.
 
--spec new(time(), machine_id()) ->
+-spec new(options()) ->
     {ok, state()} |
     {error, {invalid_machine_id, integer()} |
             {machine_id_too_large, integer()} |
             {timestamp_too_large, integer()} |
             {invalid_timestamp, integer()}}.
-new(Time, _MachineID) when Time >= (1 bsl ?TIMESTAMP_SIZE) ->
+new(#{initial_timestamp := Time}) when Time >= (1 bsl ?TIMESTAMP_SIZE) ->
     {error, {timestamp_too_large, Time}};
-new(Time, _MachineID) when Time < 0 ->
+new(#{initial_timestamp := Time}) when Time < 0 ->
     {error, {invalid_timestamp, Time}};
-new(_Time, MachineID) when MachineID >= (1 bsl ?MACHINE_ID_SIZE) ->
+new(#{machine_id := MachineID}) when MachineID >= (1 bsl ?MACHINE_ID_SIZE) ->
     {error, {machine_id_too_large, MachineID}};
-new(_Time, MachineID) when MachineID < 0 ->
+new(#{machine_id := MachineID}) when MachineID < 0 ->
     {error, {invalid_machine_id, MachineID}};
-new(Time, MachineID) ->
+new(Options) ->
     {ok, #state{
-        machine = MachineID,
-        last = Time,
+        machine = maps:get(machine_id, Options),
+        last = maps:get(initial_timestamp, Options),
+        max_backward_clock_moving = maps:get(max_backward_clock_moving, Options, 0),
         count = 0
     }}.
 
@@ -78,12 +85,14 @@ new(Time, MachineID) ->
     Result :: {ok, uuid()} | {error, generation_error_reason()}.
 next(Time, State) when Time >= (1 bsl ?TIMESTAMP_SIZE) ->
     {{error, {timestamp_too_large, Time}}, State};
-next(Time, #state{last = Last} = State) when Time < Last ->
+next(Time, State) when Time < 0 ->
+    {{error, {invalid_timestamp, Time}}, State};
+next(Time, #state{last = Last, max_backward_clock_moving = Max} = State) when (Last - Time) > Max ->
     {{error, {backward_clock_moving, Last, Time}}, State};
 next(Time, #state{last = Last} = State) when Time > Last ->
     next(Time, State#state{last = Time, count = 0});
 next(Time, #state{count = Count, last = Time} = State) when Count >= (1 bsl ?COUNTER_SIZE) ->
     {{error, exhausted}, State};
-next(Time, #state{count = Count, last = Time, machine = MachineID} = State) ->
-    ID = <<Time:?TIMESTAMP_SIZE, MachineID:?MACHINE_ID_SIZE, Count:?COUNTER_SIZE>>,
+next(_Time, #state{count = Count, last = Last, machine = MachineID} = State) ->
+    ID = <<Last:?TIMESTAMP_SIZE, MachineID:?MACHINE_ID_SIZE, Count:?COUNTER_SIZE>>,
     {{ok, ID}, State#state{count = Count + 1}}.
