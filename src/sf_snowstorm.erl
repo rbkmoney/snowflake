@@ -69,13 +69,13 @@ snowflake_now() ->
 -spec 
 machine_id() -> integer().
 machine_id() ->
-	{ok, MID} = application:get_env(machine_id),
+	{ok, MID} = application:get_env(snowflake, machine_id),
 	machine_id(MID).
 
 -spec 
 max_backward_clock_moving() -> non_neg_integer().
 max_backward_clock_moving() ->
-	case application:get_env(max_backward_clock_moving) of
+	case application:get_env(snowflake, max_backward_clock_moving) of
 		{ok, Max} ->
 			Max;
 		undefined ->
@@ -95,4 +95,16 @@ machine_id({env, Name}) ->
 			erlang:error({non_existing_env_variable, Name});
 		Value ->
 			erlang:list_to_integer(Value)
+	end;
+machine_id({env_match, Name, Regex}) ->
+	case os:getenv(Name) of
+		false ->
+			erlang:error({non_existing_env_variable, Name});
+		Value ->
+			case re:run(Value, Regex, [{capture, [0], list}]) of
+				{match, [Matched| _]} ->
+					erlang:list_to_integer(Matched);
+				nomatch ->
+					erlang:error({nomatch_env_variable, Value, Regex})
+			end
 	end.
